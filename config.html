@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PanelPro Config</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>.card{background:#111827;border:1px solid #1f2937}.btn{@apply px-3 py-1 rounded bg-cyan-700 hover:bg-cyan-600}.btn-ghost{@apply px-3 py-1 rounded bg-gray-700 hover:bg-gray-600}</style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+<header class="sticky top-0 z-10 bg-gray-950/80 backdrop-blur border-b border-gray-800">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+    <div class="text-xl font-bold text-cyan-400">PanelPro Config</div>
+    <a class="btn-ghost ml-auto" href="/index.html">Open Studio</a>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+  <section class="card rounded-xl p-4">
+    <h2 class="text-cyan-300 font-semibold mb-2">Matrix</h2>
+    <div class="grid grid-cols-2 gap-2 text-sm">
+      <label>Tiles X<input id="tilesX" type="number" min="1" class="w-20 bg-gray-900 rounded p-1 text-right"/></label>
+      <label>Tiles Y<input id="tilesY" type="number" min="1" class="w-20 bg-gray-900 rounded p-1 text-right"/></label>
+      <label>Tile W<input id="tileW" type="number" min="1" class="w-20 bg-gray-900 rounded p-1 text-right"/></label>
+      <label>Tile H<input id="tileH" type="number" min="1" class="w-20 bg-gray-900 rounded p-1 text-right"/></label>
+    </div>
+    <div class="grid grid-cols-3 gap-2 text-sm mt-2">
+      <label>Chain Start<select id="chainStart" class="bg-gray-900 rounded p-1"><option value="0">TL</option><option value="1">TR</option><option value="2">BL</option><option value="3">BR</option></select></label>
+      <label>Chain Scan<select id="chainScan" class="bg-gray-900 rounded p-1"><option value="0">Rows</option><option value="1">Cols</option></select></label>
+      <label>Chain Path<select id="chainPath" class="bg-gray-900 rounded p-1"><option value="0">Progressive</option><option value="1">Serpentine</option></select></label>
+    </div>
+    <div class="grid grid-cols-3 gap-2 text-sm mt-2">
+      <label>Inside Start<select id="inStart" class="bg-gray-900 rounded p-1"><option value="0">TL</option><option value="1">TR</option><option value="2">BL</option><option value="3">BR</option></select></label>
+      <label>Inside Scan<select id="inScan" class="bg-gray-900 rounded p-1"><option value="0">Rows</option><option value="1">Cols</option></select></label>
+      <label>Inside Path<select id="inPath" class="bg-gray-900 rounded p-1"><option value="0">Progressive</option><option value="1">Serpentine</option></select></label>
+    </div>
+
+    <div class="mt-3">
+      <div class="text-xs text-gray-400 mb-1">Drag tiles to reorder. Click to rotate; per-tile H/V below.</div>
+      <div id="tileGrid" class="grid gap-1"></div>
+      <div id="tileOrderList" class="text-xs text-gray-400 mt-1"></div>
+    </div>
+
+    <div class="mt-3">
+      <div class="text-xs text-gray-400 mb-1">Per-tile Rotation & Flips</div>
+      <div id="perTileControls" class="grid gap-1"></div>
+    </div>
+
+    <div class="mt-3 flex gap-2">
+      <button id="loadMatrixCfg" class="btn-ghost">Load</button>
+      <button id="saveMatrixCfg" class="btn">Save & Apply</button>
+      <button id="showLut" class="btn-ghost">LUT Preview</button>
+    </div>
+    <div id="lutPreview" class="mt-2 text-xs text-gray-400"></div>
+  </section>
+
+  <section class="card rounded-xl p-4">
+    <h2 class="text-cyan-300 font-semibold mb-2">Diagnostics</h2>
+    <div class="flex gap-2 mb-2">
+      <button id="testTL" class="btn-ghost">TL</button>
+      <button id="testTR" class="btn-ghost">TR</button>
+      <button id="testBL" class="btn-ghost">BL</button>
+      <button id="testBR" class="btn-ghost">BR</button>
+      <button id="testRow" class="btn-ghost">Row 0</button>
+      <button id="testCol" class="btn-ghost">Col 0</button>
+    </div>
+
+    <h3 class="text-cyan-300 font-semibold mb-2 mt-4">Wi-Fi</h3>
+    <input id="wifiSsid" placeholder="SSID" class="bg-gray-900 rounded p-2 mb-2"/>
+    <input id="wifiPass" placeholder="Password" type="password" class="bg-gray-900 rounded p-2 mb-2"/>
+    <button id="saveWifi" class="btn">Save & Connect</button>
+
+    <h3 class="text-cyan-300 font-semibold mb-2 mt-4">Logs</h3>
+    <div id="logs" class="bg-black/70 rounded p-2 h-64 overflow-y-auto text-xs font-mono"></div>
+  </section>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+let tilesX=2, tilesY=2, tileOrder=[], tileRot=[], tileFlipH=[], tileFlipV=[];
+function apiGet(p){return fetch(p).then(r=>r.ok?r.json():r.text().then(t=>Promise.reject(t)));}
+
+async function load(){
+  const c = await apiGet('/api/matrix/config');
+  $('#tilesX').value=tilesX=c.tilesX||2; $('#tilesY').value=tilesY=c.tilesY||2;
+  $('#tileW').value=c.tileW||8; $('#tileH').value=c.tileH||8;
+  $('#chainStart').value=c.chainStart||0; $('#chainScan').value=c.chainScan||0; $('#chainPath').value=c.chainPath||0;
+  $('#inStart').value=c.inStart||0; $('#inScan').value=c.inScan||0; $('#inPath').value=c.inPath||0;
+  const n=tilesX*tilesY;
+  tileOrder=(c.chainOrder&&c.chainOrder.length===n)?c.chainOrder.slice():Array.from({length:n},(_,i)=>i);
+  tileRot=(c.rot&&c.rot.length===n)?c.rot.slice():Array(n).fill(0);
+  tileFlipH=(c.flipH&&c.flipH.length===n)?c.flipH.slice():Array(n).fill(0);
+  tileFlipV=(c.flipV&&c.flipV.length===n)?c.flipV.slice():Array(n).fill(0);
+  gridBuild(); perTile(); orderList(); lut();
+}
+function gridBuild(){
+  const g=$('#tileGrid'); g.style.gridTemplateColumns=`repeat(${tilesX},2.5rem)`; g.innerHTML='';
+  for(let y=0;y<tilesY;y++) for(let x=0;x<tilesX;x++){
+    const idx=y*tilesX+x; const ord=tileOrder[idx];
+    const d=document.createElement('div');
+    d.className='w-10 h-10 rounded bg-gray-800 hover:bg-gray-700 flex flex-col items-center justify-center text-[11px] font-bold border border-cyan-600 cursor-move select-none';
+    d.draggable=true; d.dataset.idx=idx;
+    const arrow=['→','↓','←','↑'][tileRot[idx]||0];
+    d.innerHTML=`<span>${ord+1}</span><span class="text-cyan-400 text-base">${arrow}</span>`;
+    d.onclick=()=>{ tileRot[idx]=((tileRot[idx]||0)+1)&3; gridBuild(); perTile(); };
+    d.ondragstart=e=>{e.dataTransfer.setData('tileIdx',idx); d.classList.add('ring','ring-cyan-400','opacity-70');};
+    d.ondragend =e=>{d.classList.remove('ring','ring-cyan-400','opacity-70');};
+    d.ondragover=e=>{e.preventDefault(); d.classList.add('bg-cyan-900');};
+    d.ondragleave=e=>{d.classList.remove('bg-cyan-900');};
+    d.ondrop=e=>{e.preventDefault(); d.classList.remove('bg-cyan-900'); const from=+e.dataTransfer.getData('tileIdx'); [tileOrder[from],tileOrder[idx]]=[tileOrder[idx],tileOrder[from]]; gridBuild(); orderList(); };
+    g.appendChild(d);
+  }
+}
+function perTile(){
+  const b=$('#perTileControls'); b.style.gridTemplateColumns=`repeat(${tilesX},auto)`; b.innerHTML='';
+  for(let y=0;y<tilesY;y++) for(let x=0;x<tilesX;x++){
+    const i=y*tilesX+x, box=document.createElement('div'); box.className='flex flex-col items-center bg-gray-900 rounded p-1';
+    const rotSel=document.createElement('select'); rotSel.className='bg-gray-800 rounded text-xs mb-1'; [0,1,2,3].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v*90+'°';if((tileRot[i]||0)==v)o.selected=true;rotSel.appendChild(o);}); rotSel.onchange=()=>{tileRot[i]=+rotSel.value;gridBuild();};
+    const fhSel=document.createElement('select'); fhSel.className='bg-gray-800 rounded text-xs mb-1'; [0,1].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v?'FlipH':'No FlipH'; if((tileFlipH[i]||0)==v)o.selected=true; fhSel.appendChild(o);}); fhSel.onchange=()=>{tileFlipH[i]=+fhSel.value;};
+    const fvSel=document.createElement('select'); fvSel.className='bg-gray-800 rounded text-xs'; [0,1].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v?'FlipV':'No FlipV'; if((tileFlipV[i]||0)==v)o.selected=true; fvSel.appendChild(o);}); fvSel.onchange=()=>{tileFlipV[i]=+fvSel.value;};
+    const lbl=document.createElement('div'); lbl.className='text-[10px] text-gray-400 mb-1'; lbl.textContent=`Tile ${i+1}`;
+    box.append(lbl,rotSel,fhSel,fvSel); b.appendChild(box);
+  }
+}
+function orderList(){ $('#tileOrderList').textContent='Order: ['+tileOrder.join(', ')+']'; }
+async function save(){
+  const doc = {
+    tilesX:+$('#tilesX').value, tilesY:+$('#tilesY').value,
+    tileW:+$('#tileW').value,   tileH:+$('#tileH').value,
+    chainStart:+$('#chainStart').value, chainScan:+$('#chainScan').value, chainPath:+$('#chainPath').value,
+    inStart:+$('#inStart').value, inScan:+$('#inScan').value, inPath:+$('#inPath').value,
+    chainOrder: tileOrder.slice(), rot: tileRot.slice(), flipH: tileFlipH.slice(), flipV: tileFlipV.slice()
+  };
+  const r = await fetch('/api/matrix/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(doc)});
+  if(!r.ok) alert(await r.text()); else await load();
+}
+async function lut(){
+  try{ const j=await apiGet('/api/matrix/lut'); $('#lutPreview').textContent=`LUT size: ${j.size}  head:[${j.head.join(', ')}]  tail:[${j.tail.join(', ')}]`; }catch{ $('#lutPreview').textContent='LUT fetch failed'; }
+}
+$('#loadMatrixCfg').onclick=load; $('#saveMatrixCfg').onclick=save; $('#showLut').onclick=lut;
+$('#testRow').onclick=()=>fetch('/api/test/row?y=0',{method:'POST'}); $('#testCol').onclick=()=>fetch('/api/test/col?x=0',{method:'POST'});
+['TL','TR','BL','BR'].forEach(c=>$('#test'+c).onclick=()=>alert(`Use Studio corners test to verify ${c}.`));
+
+/* Wi-Fi save (plain=) */
+$('#saveWifi').onclick=async()=>{
+  const body='plain='+encodeURIComponent(JSON.stringify({ssid:$('#wifiSsid').value,pass:$('#wifiPass').value}));
+  const r=await fetch('/api/wifi/config',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});
+  alert(r.ok?'Wi-Fi saved.':'Wi-Fi failed.');
+};
+
+/* logs */
+(function ws(){
+  let ws; function start(){
+    try{ const proto=location.protocol==='https:'?'wss:':'ws:'; ws=new WebSocket(`${proto}//${location.host}/ws/log`);
+      ws.onopen=()=>add('[WS connected]'); ws.onclose=()=>{add('[WS closed]'); setTimeout(start,1500);} ; ws.onerror=()=>add('[WS error]'); ws.onmessage=e=>add(e.data);
+    }catch{ setTimeout(start,1500); }
+  } function add(s){ const d=document.createElement('div'); d.textContent=s; const el=$('#logs'); el.appendChild(d); el.scrollTop=el.scrollHeight; }
+  start();
+})();
+load();
+</script>
+</body>
+</html>

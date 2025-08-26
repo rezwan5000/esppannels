@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PanelPro Studio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { color-scheme: dark; }
+  .btn { @media (prefers-reduced-motion:no-preference) { transition: transform .06s ease, filter .15s ease; } }
+  .btn:active { transform: scale(.97); }
+  /* Pencil hover ring */
+  #ledCanvas.pencil-hover { cursor: none; }
+  .cursor-ring {
+    position:absolute; pointer-events:none; border:2px solid rgba(255,255,255,.86);
+    width:22px; height:22px; border-radius:6px; transform:translate(-50%,-50%);
+    box-shadow:0 0 10px rgba(255,255,255,.35);
+  }
+  /* Thumbs */
+  .thumb { width:72px; height:72px; border-radius:.75rem; overflow:hidden; border:1px solid rgba(255,255,255,.08); }
+  .thumb.active { outline:2px solid #22d3ee; }
+</style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+  <!-- HEADER -->
+  <header class="sticky top-0 z-40 bg-black/60 backdrop-blur border-b border-white/10">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+      <div class="w-8 h-8 rounded-xl bg-cyan-500 shadow-lg"></div>
+      <h1 class="text-lg font-semibold tracking-wide">PanelPro Studio</h1>
+      <span id="hdrMatrix" class="ml-2 px-2 py-0.5 rounded bg-white/10 text-xs">—</span>
+      <div class="ml-auto flex items-center gap-2">
+        <button id="openConfig" class="btn px-3 py-2 rounded-xl border border-cyan-400/30 text-cyan-300 bg-transparent hover:bg-cyan-900/30">Matrix Config</button>
+        <button id="refreshStatus" class="btn px-3 py-2 rounded-xl bg-cyan-500 text-cyan-950 font-semibold shadow-lg hover:brightness-105">Refresh</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-4 grid grid-cols-12 gap-4">
+
+    <!-- LEFT: TOOLBOX -->
+    <section class="col-span-12 md:col-span-3 space-y-4">
+      <div class="rounded-2xl border border-white/10 bg-gray-900 p-4 shadow-xl">
+        <h2 class="text-cyan-300 font-semibold mb-2">Tools</h2>
+        <div class="text-xs text-gray-400 mb-3">Left-click = draw • Right-click = erase</div>
+
+        <!-- tool row -->
+        <div class="grid grid-cols-3 gap-2">
+          <button class="btn px-3 py-2 rounded-xl bg-gray-800 text-gray-100 hover:bg-gray-700 ring-2 ring-white/60" data-tool="pencil">✏️ Pencil</button>
+          <button class="btn px-3 py-2 rounded-xl bg-gray-800 text-gray-100 hover:bg-gray-700" data-tool="line">／ Line</button>
+          <button class="btn px-3 py-2 rounded-xl bg-gray-800 text-gray-100 hover:bg-gray-700" data-tool="fill">🪣 Fill</button>
+
+          <button class="btn px-3 py-2 rounded-xl bg-gray-800 text-gray-100 hover:bg-gray-700" data-tool="rect">▭ Rect</button>
+          <button class="btn px-3 py-2 rounded-xl bg-gray-800 text-gray-100 hover:bg-gray-700" data-tool="circle">◯ Circle</button>
+          <button id="clearCanvas" class="btn px-3 py-2 rounded-xl bg-gray-800 text-gray-100 hover:bg-gray-700">🧹 Clear</button>
+        </div>
+
+        <!-- shape options -->
+        <div class="mt-3">
+          <div class="text-xs text-gray-400 mb-1">Shape mode</div>
+          <div id="shapeMode" class="inline-flex rounded-lg overflow-hidden border border-white/10">
+            <button data-mode="fill" class="px-3 py-1 bg-cyan-600 text-white">Fill</button>
+            <button data-mode="outline" class="px-3 py-1 text-gray-200">Outline</button>
+          </div>
+        </div>
+
+        <!-- color + order -->
+        <div class="grid grid-cols-2 gap-2 mt-3">
+          <div>
+            <div class="text-xs text-gray-400 mb-1">Color</div>
+            <input id="color" type="color" value="#ffffff" class="w-full h-10 bg-black/40 rounded-lg border border-white/10"/>
+          </div>
+          <div>
+            <div class="text-xs text-gray-400 mb-1">Color Order</div>
+            <select id="colorOrder" class="w-full h-10 bg-black/40 rounded-lg border border-white/10 px-2">
+              <option value="RGB" selected>RGB</option>
+              <option value="RBG">RBG</option>
+              <option value="GRB">GRB</option>
+              <option value="GBR">GBR</option>
+              <option value="BRG">BRG</option>
+              <option value="BGR">BGR</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- brightness + mA -->
+        <div class="mt-3 space-y-3">
+          <div>
+            <div class="flex justify-between text-xs text-gray-400">
+              <span>Brightness</span><span id="brightVal">100%</span>
+            </div>
+            <input id="brightness" type="range" min="1" max="100" value="100" class="w-full"/>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs text-gray-400">
+              <span>mA Limit</span><span id="maLive">off</span>
+            </div>
+            <div class="flex gap-2">
+              <input id="maLimit" type="number" min="0" step="50" placeholder="e.g. 1500" class="flex-1 bg-black/40 rounded-lg border border-white/10 px-2 py-2"/>
+              <button id="maApply" class="btn px-3 py-2 rounded-xl border border-cyan-400/30 text-cyan-300 bg-transparent hover:bg-cyan-900/30">Apply</button>
+            </div>
+            <div id="maClamp" class="text-[11px] text-amber-300 mt-1 hidden">Down-scaled to stay under current limit.</div>
+          </div>
+        </div>
+
+        <!-- presets -->
+        <div class="mt-3 grid grid-cols-2 gap-2">
+          <button id="btnGradient" class="btn px-3 py-2 rounded-xl border border-cyan-400/30 text-cyan-300 bg-transparent hover:bg-cyan-900/30">Gradient</button>
+          <button id="btnFillAll" class="btn px-3 py-2 rounded-xl border border-cyan-400/30 text-cyan-300 bg-transparent hover:bg-cyan-900/30">Fill All</button>
+        </div>
+
+        <!-- image → pixel -->
+        <div class="mt-3 space-y-2">
+          <div class="text-xs text-gray-400">Image → Pixel art</div>
+          <input id="imgInput" type="file" accept="image/*" class="w-full text-xs"/>
+          <div class="flex gap-2">
+            <button id="imgToCanvas" class="btn px-3 py-2 rounded-xl bg-gray-800 text-gray-100 hover:bg-gray-700 flex-1">Load to Canvas</button>
+            <label class="flex items-center gap-1 text-xs text-gray-300">
+              <input id="dither" type="checkbox" class="accent-cyan-500"> Dither
+            </label>
+          </div>
+        </div>
+
+        <!-- send -->
+        <div class="mt-3 grid grid-cols-2 gap-2">
+          <button id="sendFrame" class="btn px-3 py-2 rounded-xl bg-cyan-500 text-cyan-950 font-semibold shadow-lg hover:brightness-105">Send Canvas</button>
+          <button id="blackout" class="btn px-3 py-2 rounded-xl bg-rose-500 text-rose-950 font-semibold shadow-lg hover:brightness-105">Blackout</button>
+        </div>
+      </div>
+
+      <!-- LOGS -->
+      <div class="rounded-2xl border border-white/10 bg-gray-900 p-4 shadow-xl">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-cyan-300 font-semibold">Logs</h2>
+          <button id="copyLogs" class="btn px-3 py-2 rounded-xl border border-cyan-400/30 text-cyan-300 bg-transparent hover:bg-cyan-900/30">Copy</button>
+        </div>
+        <div id="logs" class="bg-black/60 rounded-xl p-2 h-48 overflow-y-auto text-xs font-mono border border-white/10"></div>
+      </div>
+    </section>
+
+    <!-- CENTER: CANVAS -->
+    <section class="col-span-12 md:col-span-6 rounded-2xl border border-white/10 bg-gray-900 p-4 shadow-xl relative">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-cyan-300 font-semibold">Canvas</h2>
+        <div id="frameStats" class="px-2 py-0.5 rounded bg-white/10 text-xs">—</div>
+      </div>
+      <div class="relative">
+        <canvas id="ledCanvas" width="768" height="768" class="w-full aspect-square rounded-xl bg-black border border-white/10"></canvas>
+        <div id="cursorRing" class="cursor-ring hidden"></div>
+      </div>
+      <div class="mt-3 flex items-center gap-2 text-xs text-gray-400">
+        <span>View:</span>
+        <button class="btn px-3 py-1 rounded-lg border border-cyan-400/30 text-cyan-300 bg-transparent hover:bg-cyan-900/30" id="zoomFit">Fit</button>
+        <button class="btn px-3 py-1 rounded-lg border border-cyan-400/30 text-cyan-300 bg-transparent hover:bg-cyan-900/30" id="zoom1x">1×</button>
+      </div>
+    </section>
+
+    <!-- RIGHT: TIMELINE -->
+    <section class="col-span-12 md:col-span-3 rounded-2xl border border-white/10 bg-gray-900 p-4 shadow-xl">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-cyan-300 font-semibold">Timeline</h2>
+        <div class="flex gap-2">
+          <button id="addFrame" class="btn px-3 py-2 rounded-xl bg-cyan-500 text-cyan-950 font-semibold shadow-lg hover:brightness-105">+ Frame</button>
+          <button id="delFrame" class="btn px-3 py-2 rounded-xl border border-cyan-400/30 text-cyan-300 bg-transparent hover:bg-cyan-900/30">Del</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 mb-3">
+        <button id="play" class="btn px-3 py-2 rounded-xl bg-cyan-500 text-cyan-950 font-semibold shadow-lg hover:brightness-105">▶ Play</button>
+        <button id="stop" class="btn px-3 py-2 rounded-xl border border-cyan-400/30 text-cyan-300 bg-transparent hover:bg-cyan-900/30">⏹ Stop</button>
+        <input id="fps" type="number" min="1" max="60" value="12" class="w-20 bg-black/40 rounded-lg border border-white/10 px-2 py-1"/>
+        <span class="text-xs text-gray-400">FPS</span>
+      </div>
+      <div id="frames" class="grid grid-cols-3 gap-2"></div>
+    </section>
+
+  </main>
+
+<script>
+(() => {
+  // ---------- helpers ----------
+  const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
+  async function apiGet(p){ const r=await fetch(p); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+  async function apiPost(p, body, contentType="application/json"){
+    const r = await fetch(p,{method:"POST",headers:{"Content-Type":contentType},body:contentType==="application/json"?JSON.stringify(body):body});
+    if(!r.ok) throw new Error(await r.text()); return r.json();
+  }
+  function clamp(v,a,b){ return v<a?a:v>b?b:v; }
+
+  // ---------- status / matrix ----------
+  let ledW=16, ledH=16;
+  async function loadStatus(){
+    try{
+      const s = await apiGet("/api/status");
+      $("#hdrMatrix").textContent = `${s.matrix?.W}×${s.matrix?.H} • ${s.firmware||"—"}`;
+      ledW = s.matrix?.W || 16;
+      ledH = s.matrix?.H || 16;
+      renderCanvas(true);
+    }catch(e){ appendLog(`[E] status ${e.message}`); }
+  }
+  $("#refreshStatus").onclick = loadStatus;
+  $("#openConfig").onclick = () => window.open("/config.html","_blank");
+
+  // ---------- canvas model ----------
+  const canvas = $("#ledCanvas");
+  const ctx = canvas.getContext("2d");
+  let grid = []; // [y][x] = [r,g,b]
+  let tool = "pencil";
+  let shapeMode = "fill";
+  let isDown = false;
+  let startPt = null;
+
+  function newGrid(){ return Array.from({length:ledH},()=>Array.from({length:ledW},()=>[0,0,0])); }
+  function cloneGrid(g){ return g.map(row=>row.map(px=>px.slice())); }
+
+  function renderCanvas(reinit=false){
+    if(reinit || grid.length!==ledH || grid[0]?.length!==ledW) grid = newGrid();
+    const cell = Math.floor(Math.min(canvas.width/ledW, canvas.height/ledH));
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    for(let y=0;y<ledH;y++){
+      for(let x=0;x<ledW;x++){
+        const [r,g,b]=grid[y][x];
+        ctx.fillStyle=`rgb(${r},${g},${b})`;
+        ctx.fillRect(x*cell, y*cell, cell-1, cell-1);
+      }
+    }
+    updateStats();
+  }
+
+  function xyFromEvent(e){
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width/rect.width, scaleY=canvas.height/rect.height;
+    const cx = (e.clientX-rect.left)*scaleX, cy=(e.clientY-rect.top)*scaleY;
+    const cell = Math.floor(Math.min(canvas.width/ledW, canvas.height/ledH));
+    return { x: clamp(Math.floor(cx/cell),0,ledW-1),
+             y: clamp(Math.floor(cy/cell),0,ledH-1) };
+  }
+  function setPixel(x,y,rgb){ grid[y][x]=rgb; }
+
+  function drawLine(x0,y0,x1,y1, rgb){
+    let dx=Math.abs(x1-x0), sx=x0<x1?1:-1;
+    let dy=-Math.abs(y1-y0), sy=y0<y1?1:-1;
+    let err=dx+dy, e2;
+    for(;;){
+      setPixel(x0,y0,rgb);
+      if(x0===x1 && y0===y1) break;
+      e2=2*err;
+      if(e2>=dy){ err+=dy; x0+=sx; }
+      if(e2<=dx){ err+=dx; y0+=sy; }
+    }
+  }
+  function drawRect(x0,y0,x1,y1,rgb,fill=true){
+    const xmin=Math.min(x0,x1), xmax=Math.max(x0,x1);
+    const ymin=Math.min(y0,y1), ymax=Math.max(y0,y1);
+    if(fill){
+      for(let y=ymin;y<=ymax;y++) for(let x=xmin;x<=xmax;x++) setPixel(x,y,rgb);
+    }else{
+      for(let x=xmin;x<=xmax;x++){ setPixel(x,ymin,rgb); setPixel(x,ymax,rgb); }
+      for(let y=ymin;y<=ymax;y++){ setPixel(xmin,y,rgb); setPixel(xmax,y,rgb); }
+    }
+  }
+  function drawCircle(cx,cy,r,rgb,fill=true){
+    let x=r, y=0, err=0;
+    const plot=(xx,yy)=>{ if(xx>=0&&xx<ledW&&yy>=0&&yy<ledH) setPixel(xx,yy,rgb); };
+    while(x>=y){
+      if(fill){
+        for(let xx=cx-x; xx<=cx+x; xx++){ plot(xx,cy+y); plot(xx,cy-y); }
+        for(let xx=cx-y; xx<=cx+y; xx++){ plot(xx,cy+x); plot(xx,cy-x); }
+      }else{
+        [ [cx+x,cy+y],[cx-x,cy+y],[cx+x,cy-y],[cx-x,cy-y],
+          [cx+y,cy+x],[cx-y,cy+x],[cx+y,cy-x],[cx-y,cy-x] ].forEach(p=>plot(p[0],p[1]));
+      }
+      y++; if(err<=0){ err+=2*y+1; } if(err>0){ x--; err-=2*x+1; }
+    }
+  }
+
+  function hexToRgb(h){ const v=h[0]==='#'?h.slice(1):h; const n=parseInt(v,16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+
+  // pencil hover ring + interactions
+  const ring=$("#cursorRing");
+  canvas.addEventListener("contextmenu", e=>e.preventDefault());
+  canvas.addEventListener("pointerenter", ()=>{ if(tool==="pencil"){ ring.classList.remove("hidden"); canvas.classList.add("pencil-hover"); }});
+  canvas.addEventListener("pointerleave", ()=>{ ring.classList.add("hidden"); canvas.classList.remove("pencil-hover"); });
+  canvas.addEventListener("pointermove", e=>{
+    ring.style.left=e.clientX+"px"; ring.style.top=e.clientY+"px";
+    if(!isDown || tool!=="pencil") return;
+    const {x,y}=xyFromEvent(e);
+    const left = (e.buttons & 1)!==0;
+    setPixel(x,y, left ? hexToRgb($("#color").value) : [0,0,0]);
+    renderCanvas();
+  });
+  canvas.addEventListener("pointerdown", e=>{
+    isDown=true; const {x,y}=xyFromEvent(e); startPt={x,y};
+    if(tool==="pencil"){ const left=(e.buttons&1)!==0; setPixel(x,y,left?hexToRgb($("#color").value):[0,0,0]); renderCanvas(); }
+  });
+  window.addEventListener("pointerup", e=>{
+    if(!isDown) return;
+    const {x,y}=xyFromEvent(e); const rgb=hexToRgb($("#color").value);
+    if(tool==="line" && startPt){ drawLine(startPt.x,startPt.y,x,y,rgb); }
+    else if(tool==="rect" && startPt){ drawRect(startPt.x,startPt.y,x,y,rgb, shapeMode==="fill"); }
+    else if(tool==="circle" && startPt){ const dx=x-startPt.x, dy=y-startPt.y; drawCircle(startPt.x,startPt.y,Math.round(Math.hypot(dx,dy)),rgb, shapeMode==="fill"); }
+    else if(tool==="fill"){ floodFill(x,y,rgb); }
+    startPt=null; isDown=false; renderCanvas();
+  });
+
+  function floodFill(x,y,rgb){
+    const target=grid[y][x]; if(target[0]===rgb[0]&&target[1]===rgb[1]&&target[2]===rgb[2]) return;
+    const st=[[x,y]]; const seen=new Set([y*10000+x]);
+    while(st.length){
+      const [cx,cy]=st.pop(); const px=grid[cy][cx];
+      if(px[0]===target[0]&&px[1]===target[1]&&px[2]===target[2]){
+        grid[cy][cx]=rgb;
+        [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+          const nx=cx+dx, ny=cy+dy, k=ny*10000+nx;
+          if(nx>=0&&nx<ledW&&ny>=0&&ny<ledH && !seen.has(k)){ seen.add(k); st.push([nx,ny]); }
+        });
+      }
+    }
+  }
+
+  // tool buttons
+  $$("[data-tool]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      tool = btn.getAttribute("data-tool");
+      $$("[data-tool]").forEach(b=>b.classList.remove("ring-2","ring-white/60"));
+      btn.classList.add("ring-2","ring-white/60");
+    });
+  });
+  // shape mode
+  $$("#shapeMode button").forEach(b=>{
+    b.onclick=()=>{
+      $$("#shapeMode button").forEach(x=>x.classList.remove("bg-cyan-600","text-white"));
+      b.classList.add("bg-cyan-600","text-white");
+      shapeMode=b.getAttribute("data-mode");
+    };
+  });
+
+  // quick ops
+  $("#clearCanvas").onclick = ()=>{ grid=newGrid(); renderCanvas(); };
+  $("#btnFillAll").onclick = ()=>{
+    const rgb=hexToRgb($("#color").value);
+    for(let y=0;y<ledH;y++) for(let x=0;x<ledW;x++) grid[y][x]=rgb.slice();
+    renderCanvas();
+  };
+  $("#btnGradient").onclick = ()=>{
+    for(let y=0;y<ledH;y++) for(let x=0;x<ledW;x++)
+      grid[y][x]=[Math.floor(255*x/Math.max(1,ledW-1)), Math.floor(255*y/Math.max(1,ledH-1)), 128];
+    renderCanvas();
+  };
+
+  // zoom
+  $("#zoom1x").onclick = ()=>{ canvas.style.width="768px"; canvas.style.height="768px"; };
+  $("#zoomFit").onclick = ()=>{ canvas.style.width="100%"; canvas.style.height="auto"; };
+
+  // brightness + mA limit
+  let userBrightness=1.0; $("#brightness").oninput = e=>{ userBrightness=(+e.target.value)/100; $("#brightVal").textContent=Math.round(userBrightness*100)+"%"; renderCanvas(); };
+  let maLimit=0; $("#maApply").onclick = ()=>{ const v=+$("#maLimit").value||0; maLimit=Math.max(0,v|0); $("#maLive").textContent=maLimit?`${maLimit} mA`:"off"; };
+
+  function mapOrder(order,r,g,b){
+    switch(order){
+      case "RGB": return [r,g,b];
+      case "RBG": return [r,b,g];
+      case "GRB": return [g,r,b];
+      case "GBR": return [g,b,r];
+      case "BRG": return [b,r,g];
+      case "BGR": return [b,g,r];
+      default: return [r,g,b];
+    }
+  }
+
+  function updateStats(){
+    let nz=0; for(let y=0;y<ledH;y++) for(let x=0;x<ledW;x++){ const [r,g,b]=grid[y][x]; if((r|g|b)!==0) nz++; }
+    $("#frameStats").textContent = `Lit: ${nz}`;
+  }
+
+  function buildFrame(){
+    const order = $("#colorOrder").value;
+    // brightness scale
+    const scaleB = userBrightness;
+    // estimate current (20mA/channel)
+    let est=0;
+    for(let y=0;y<ledH;y++) for(let x=0;x<ledW;x++){ const [r,g,b]=grid[y][x]; est += (r+g+b)/255 * 20; }
+    const limit = maLimit>0? maLimit : Infinity;
+    const scaleI = est>limit ? (limit/est) : 1.0;
+    $("#maClamp").classList.toggle("hidden", !(scaleI<1.0));
+    const scale = Math.max(0, Math.min(1, scaleB*scaleI));
+
+    const buf = new Uint8Array(ledW*ledH*3);
+    let k=0;
+    for(let y=0;y<ledH;y++){
+      for(let x=0;x<ledW;x++){
+        let [r,g,b]=grid[y][x];
+        r=Math.round(r*scale); g=Math.round(g*scale); b=Math.round(b*scale);
+        const [c0,c1,c2]=mapOrder(order,r,g,b);
+        buf[k++]=c0; buf[k++]=c1; buf[k++]=c2;
+      }
+    }
+    return buf;
+  }
+
+  // sending
+  $("#sendFrame").onclick = async ()=>{
+    try{
+      const buf = buildFrame();
+      await fetch("/api/frame",{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:buf});
+    }catch(e){ appendLog(`[E] send ${e.message}`); }
+  };
+  $("#blackout").onclick = ()=>{ grid=newGrid(); renderCanvas(); $("#sendFrame").click(); };
+
+  // timeline
+  let frames=[newGrid()];
+  let cur=0;
+  function thumb(g){
+    const w=72,h=72, c=document.createElement("canvas"); c.width=w; c.height=h;
+    const t=c.getContext("2d"); const cw=Math.floor(w/ledW), ch=Math.floor(h/ledH);
+    t.fillStyle="#000"; t.fillRect(0,0,w,h);
+    for(let y=0;y<ledH;y++) for(let x=0;x<ledW;x++){
+      const [r,g2,b]=g[y][x]; t.fillStyle=`rgb(${r},${g2},${b})`; t.fillRect(x*cw,y*ch,cw-1,ch-1);
+    }
+    c.className="thumb"; return c;
+  }
+  function renderFrames(){
+    const box=$("#frames"); box.innerHTML="";
+    frames.forEach((g,i)=>{
+      const w=document.createElement("div"); const t=thumb(g); if(i===cur) t.classList.add("active");
+      w.appendChild(t); w.onclick=()=>{ cur=i; grid=cloneGrid(frames[cur]); renderFrames(); renderCanvas(); };
+      box.appendChild(w);
+    });
+  }
+  $("#addFrame").onclick = ()=>{
+    frames.push(cloneGrid(grid));
+    cur = frames.length-1;        // auto-jump to the new frame
+    grid = cloneGrid(frames[cur]);
+    renderFrames(); renderCanvas();
+  };
+  $("#delFrame").onclick = ()=>{
+    if(frames.length<=1) return;
+    frames.splice(cur,1);
+    cur = Math.max(0,cur-1);
+    grid = cloneGrid(frames[cur]);
+    renderFrames(); renderCanvas();
+  };
+
+  let playing=false, timer=null;
+  $("#play").onclick = ()=>{
+    if(playing) return; playing=true;
+    const step=async()=>{
+      if(!playing) return;
+      try{
+        const buf = buildFrame();
+        await fetch("/api/frame",{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:buf});
+      }catch(e){ appendLog(`[E] anim send ${e.message}`); }
+      cur=(cur+1)%frames.length;
+      grid=cloneGrid(frames[cur]);
+      renderFrames(); renderCanvas();
+      const fps = clamp(+$("#fps").value||12,1,60);
+      timer=setTimeout(step, 1000/fps);
+    };
+    step();
+  };
+  $("#stop").onclick = ()=>{ playing=false; if(timer) clearTimeout(timer); };
+
+  // image → pixel art (simple scale + optional ordered dither)
+  $("#imgToCanvas").onclick = async ()=>{
+    const file = $("#imgInput").files?.[0]; if(!file) return;
+    const bmp = await file.arrayBuffer();
+    const img = await createImageBitmap(new Blob([bmp]));
+    const off = document.createElement("canvas");
+    off.width = ledW; off.height = ledH;
+    const octx = off.getContext("2d", { willReadFrequently:true });
+    octx.imageSmoothingEnabled = !$("#dither").checked; // keep crisp if dither on
+    octx.drawImage(img, 0, 0, ledW, ledH);
+    const data = octx.getImageData(0,0,ledW,ledH).data;
+    for(let y=0;y<ledH;y++) for(let x=0;x<ledW;x++){
+      const i=(y*ledW+x)*4;
+      grid[y][x]=[data[i],data[i+1],data[i+2]];
+    }
+    // quick 4x4 bayer ordered dither if checked
+    if($("#dither").checked){
+      const M=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+      for(let y=0;y<ledH;y++) for(let x=0;x<ledW;x++){
+        const t = (M[y&3][x&3]+0.5)/16 - 0.5;
+        let [r,g,b]=grid[y][x];
+        grid[y][x]=[
+          clamp(Math.round(r + t*32),0,255),
+          clamp(Math.round(g + t*32),0,255),
+          clamp(Math.round(b + t*32),0,255),
+        ];
+      }
+    }
+    renderCanvas();
+  };
+
+  // logs
+  function appendLog(msg){
+    const box=$("#logs");
+    const stick = box.scrollTop + box.clientHeight >= box.scrollHeight - 8;
+    const div=document.createElement("div"); div.textContent=msg; box.appendChild(div);
+    while(box.childNodes.length>600) box.removeChild(box.firstChild);
+    if(stick) box.scrollTop = box.scrollHeight;
+  }
+  $("#copyLogs").onclick = ()=>{
+    const text = Array.from($("#logs").childNodes).map(n=>n.textContent).join("\n");
+    navigator.clipboard?.writeText(text).catch(()=>{});
+  };
+  (function connectWS(){
+    let ws;
+    function start(){
+      try{
+        const proto = location.protocol==="https:"?"wss:":"ws:";
+        ws = new WebSocket(`${proto}//${location.host}/ws/log`);
+        ws.onopen = ()=>appendLog("[WS connected]");
+        ws.onclose= ()=>{ appendLog("[WS closed]"); setTimeout(start,1500); };
+        ws.onerror= ()=>appendLog("[WS error]");
+        ws.onmessage = e=>appendLog(e.data);
+      }catch(e){ appendLog("[WS init error]"); }
+    }
+    start();
+  })();
+
+  // init
+  $$("[data-tool]").forEach(b=>{ if(b.getAttribute("data-tool")==="pencil") b.classList.add("ring-2","ring-white/60"); });
+  loadStatus().then(()=>{ frames=[cloneGrid(grid)]; renderFrames(); renderCanvas(); });
+})();
+</script>
+</body>
+</html>

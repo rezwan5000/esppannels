@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>PanelPro Uploader</title>
+<style>
+  body{font:14px system-ui,Segoe UI,Arial;margin:24px;max-width:800px}
+  label{display:inline-block;min-width:80px}
+  #log{white-space:pre-wrap;background:#111;color:#0f0;padding:12px;border-radius:8px;height:220px;overflow:auto}
+  .row{margin:8px 0}
+  button{padding:6px 12px}
+</style>
+<div class="row">
+  <label>Host</label>
+  <input id="host" size="40" value="http://192.168.4.1">
+  <button id="btnList">List</button>
+</div>
+<div class="row">
+  <label>File</label>
+  <input id="file" type="file">
+  <button id="btnUpload">Upload</button>
+</div>
+<div class="row">
+  <label>Delete</label>
+  <input id="delName" placeholder="filename e.g. frontend.html">
+  <button id="btnDelete">Delete</button>
+</div>
+<div id="log"></div>
+<script>
+const host = ()=>document.querySelector("#host").value.replace(/\/+$/,'');
+const log = m=>{ const el=document.querySelector("#log"); el.textContent += m+"\n"; el.scrollTop=1e9; };
+
+async function list(){
+  const r = await fetch(host()+"/api/spiffs/list?t="+Date.now());
+  const j = await r.json(); log("LIST: "+JSON.stringify(j));
+}
+async function upload(){
+  const f = document.querySelector("#file").files[0];
+  if(!f){ alert("Pick a file"); return; }
+  const fd = new FormData(); fd.append("file", f, f.name);
+  const r = await fetch(host()+"/api/spiffs/upload", { method:"POST", body:fd });
+  log("UPLOAD: "+(await r.text()));
+}
+async function del(){
+  const name = document.querySelector("#delName").value.trim();
+  if(!name){ alert("Name?"); return; }
+  const body = new URLSearchParams({ filename:name });
+  const r = await fetch(host()+"/api/spiffs/delete", {
+    method:"POST",
+    headers:{ "Content-Type":"application/x-www-form-urlencoded" },
+    body
+  });
+  log("DELETE: "+(await r.text()));
+}
+document.querySelector("#btnList").onclick=list;
+document.querySelector("#btnUpload").onclick=upload;
+document.querySelector("#btnDelete").onclick=del;
+</script>
